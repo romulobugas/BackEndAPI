@@ -6,7 +6,6 @@ using System;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
-using BackEndAPI.Services;
 
 namespace BackEndAPI.Services
 {
@@ -35,9 +34,8 @@ namespace BackEndAPI.Services
                     Password = hashedPassword,
                     UpdateDate = DateTime.UtcNow,
                     CreatedDate = DateTime.UtcNow,
-                    
+                    Token = token
                 };
-                user.Token = _tokenService.GenerateToken(user);
 
                 _context.AppUsers.Add(userApi);
                 _context.SaveChanges();
