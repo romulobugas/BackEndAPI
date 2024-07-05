@@ -19,6 +19,18 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
+// Configure CORS to allow all origins
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowAllOrigins",
+        policy =>
+        {
+            policy.AllowAnyOrigin()
+                  .AllowAnyHeader()
+                  .AllowAnyMethod();
+        });
+});
+
 // JWT Authentication
 builder.Services.AddAuthentication(options =>
 {
@@ -73,6 +85,7 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 app.UseRouting();
+app.UseCors("AllowAllOrigins"); // Adiciona CORS no pipeline de middleware
 app.UseAuthentication();
 app.UseAuthorization();
 
