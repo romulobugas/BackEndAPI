@@ -21,7 +21,7 @@ namespace BackEndAPI.Models
                    .HasConversion(
                         v => v.ToUniversalTime(),
                         v => DateTime.SpecifyKind(v, DateTimeKind.Utc));
-            builder.Property(u => u.Token).HasMaxLength(100);
+            builder.Property(u => u.Token).HasMaxLength(512);
         }
     }
 }

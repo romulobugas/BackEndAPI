@@ -1,41 +1,86 @@
-﻿using BackEndAPI.Services.Interfaces;
+﻿using BackEndAPI.Models;
+using BackEndAPI.Services.Interfaces;
+using Microsoft.Extensions.Configuration;
+using Microsoft.IdentityModel.Tokens;
 using System;
-using System.Collections.Generic;
+using System.IdentityModel.Tokens.Jwt;
 using System.Linq;
-using System.Threading.Tasks;
+using System.Security.Claims;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace BackEndAPI.Services
 {
+    using JwtPayloadModel = BackEndAPI.Models.JwtPayload;
+
     public class TokenService : ITokenService
     {
-        private readonly IDictionary<string, DateTime> _temporaryTokens = new Dictionary<string, DateTime>();
+        private readonly IConfiguration _configuration;
 
-        public string GenerateTemporaryToken(string username)
+        public TokenService(IConfiguration configuration)
         {
-            var token = Guid.NewGuid().ToString();
-            _temporaryTokens[token] = DateTime.UtcNow.AddMinutes(15); // Token válido por 15 minutos
-
-            return token;
+            _configuration = configuration;
         }
 
-        public bool ValidateTemporaryToken(string token)
+        public string GenerateToken(JwtPayloadModel payload)
         {
-            if (_temporaryTokens.TryGetValue(token, out var expiration))
-            {
-                if (expiration > DateTime.UtcNow)
-                {
-                    // Token válido
-                    return true;
-                }
-                else
-                {
-                    // Token expirado
-                    _temporaryTokens.Remove(token);
-                    return false;
-                }
-            }
+            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]));
+            var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
-            return false; // Token não encontrado
+            var claims = new[]
+            {
+                new Claim("Validator", payload.Validator),
+                new Claim("User", payload.User),
+                new Claim("Password", payload.Password),
+                new Claim("String", payload.String)
+            };
+
+            var token = new JwtSecurityToken(
+                issuer: _configuration["Jwt:Issuer"],
+                audience: _configuration["Jwt:Audience"],
+                claims: claims,
+                expires: DateTime.Now.AddMinutes(double.Parse(_configuration["Jwt:ExpiresInMinutes"])),
+                signingCredentials: creds
+            );
+
+            return new JwtSecurityTokenHandler().WriteToken(token);
+        }
+
+        public bool ValidateToken(string token, out JwtPayloadModel payload)
+        {
+            payload = null;
+            var tokenHandler = new JwtSecurityTokenHandler();
+            var key = Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]);
+
+            try
+            {
+                tokenHandler.ValidateToken(token, new TokenValidationParameters
+                {
+                    ValidateIssuerSigningKey = true,
+                    IssuerSigningKey = new SymmetricSecurityKey(key),
+                    ValidateIssuer = true,
+                    ValidIssuer = _configuration["Jwt:Issuer"],
+                    ValidateAudience = true,
+                    ValidAudience = _configuration["Jwt:Audience"],
+                    ValidateLifetime = true,
+                    ClockSkew = TimeSpan.Zero
+                }, out SecurityToken validatedToken);
+
+                var jwtToken = (JwtSecurityToken)validatedToken;
+                payload = new JwtPayloadModel
+                {
+                    Validator = jwtToken.Claims.First(x => x.Type == "Validator").Value,
+                    User = jwtToken.Claims.First(x => x.Type == "User").Value,
+                    Password = jwtToken.Claims.First(x => x.Type == "Password").Value,
+                    String = jwtToken.Claims.First(x => x.Type == "String").Value
+                };
+
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
         }
     }
 }
